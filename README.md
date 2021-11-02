@@ -1,7 +1,7 @@
 # discord.py `/slash` cog
 **A drop-in vanilla discord.py cog that acts as a translation layer to add slash command support with little to no code modifications, no forks needed**
 
-![PyPI - License](https://img.shields.io/pypi/l/slash_cog) ![PyPI](https://img.shields.io/pypi/v/slash_cog) ![PyPI - Status](https://img.shields.io/pypi/status/slash_cog) ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/slash_cog)
+![PyPI - License](https://img.shields.io/pypi/l/slash_cog) [![PyPI](https://img.shields.io/pypi/v/slash_cog)](https://pypi.org/project/slash-cog) ![PyPI - Status](https://img.shields.io/pypi/status/slash_cog) ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/slash_cog)
 
 ### Features:
 

@@ -24,11 +24,12 @@ SOFTWARE.
 
 from discord.ext.commands import Bot
 
-from slash_cog.context import InteractContext
+from slash_cog.api_constants import *
+from slash_cog.cog import *
 from slash_cog.command_map import index_command
+from slash_cog.context import InteractContext
 from slash_cog.decorator import inject_extracted
 from slash_cog.message import InteractMessage
-from slash_cog.cog import *
 
 
 def setup(bot: Bot):

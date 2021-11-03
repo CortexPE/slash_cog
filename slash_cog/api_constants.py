@@ -22,31 +22,28 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-import discord
-from discord.ext import commands
+from enum import IntEnum
 
 
-class InteractContext(commands.Context):
-    """Wrapper around InteractionRespone"""
+class ApplicationCommandType(IntEnum):
+    CHAT_INPUT = 1
+    USER = 2
+    MESSAGE = 3
 
-    def __init__(self, **attrs):
-        super().__init__(**attrs)
-        self.parent_interaction = self.message.parent_interaction  # type: discord.Interaction
-        self.response = discord.InteractionResponse(self.message.parent_interaction)
 
-    async def send(self, *args, **kwargs):
-        delete_after = kwargs.pop("delete_after", None)
-        # if not self.response.is_done() and False:
-        #     await self.response.send_message(ephemeral=False, *args, **kwargs)
-        # else:
-        await self.parent_interaction.followup.send(*args, **kwargs)
-        msg = await self.parent_interaction.original_message()
+class ApplicationCommandOptionType(IntEnum):
+    SUB_COMMAND = 1
+    SUB_COMMAND_GROUP = 2
+    STRING = 3
+    INTEGER = 4
+    BOOLEAN = 5
+    USER = 6
+    CHANNEL = 7
+    ROLE = 8
+    MENTIONABLE = 9
+    NUMBER = 10
 
-        if delete_after is not None:
-            await msg.delete(delay=delete_after)
 
-        return msg
-
-    async def reply(self, *args, **kwargs):
-        kwargs.pop("mention_author", None)  # interactions don't support mentioning author
-        return await self.send(*args, **kwargs)
+class ApplicationCommandPermissionType(IntEnum):
+    ROLE = 1
+    USER = 2

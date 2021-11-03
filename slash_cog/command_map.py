@@ -28,26 +28,28 @@ import typing
 import discord
 from discord.ext import commands
 
+from .api_constants import *
 
-def param_annotation_to_discord_int(annotation: type):
+
+def param_annotation_to_discord_int(annotation: type) -> ApplicationCommandOptionType:
     if annotation == str or annotation == commands.clean_content:
-        return 3
+        return ApplicationCommandOptionType.STRING
     elif annotation == int:
-        return 4
+        return ApplicationCommandOptionType.INTEGER
     elif annotation == bool:
-        return 5
-    elif annotation == discord.user.User:  # user
-        return 6
-    elif annotation == discord.abc.GuildChannel:  # channel
-        return 7
-    elif annotation == discord.Role:  # role
-        return 8
-    # elif False:  # mentionable
-    #     return 9
-    elif annotation == float:  # number
-        return 10
+        return ApplicationCommandOptionType.BOOLEAN
+    elif annotation == discord.user.User:
+        return ApplicationCommandOptionType.USER
+    elif annotation == discord.abc.GuildChannel:
+        return ApplicationCommandOptionType.CHANNEL
+    elif annotation == discord.Role:
+        return ApplicationCommandOptionType.ROLE
+    # elif False:
+    #     return ApplicationCommandOptionType.MENTIONABLE
+    elif annotation == float:
+        return ApplicationCommandOptionType.NUMBER
 
-    return 3  # fallback to string
+    return ApplicationCommandOptionType.STRING  # fallback to string, discord.py will convert it
 
 
 def index_callback_parameters(callback: callable) -> typing.List[dict]:
@@ -92,14 +94,16 @@ async def index_command(bot: commands.Bot, cmd: commands.Command) -> typing.Opti
             if sub_cmd_data is None:
                 continue
             cmd_data["options"].append(sub_cmd_data)
-        if len(cmd_data["options"]) < 1:
+
+        if len(cmd_data["options"]) < 1:  # ignore empty subcommands
             return None
+
         return cmd_data
 
-    if cmd.hidden:
-        return None
-
     for check in cmd.checks:
+        # todo: use inspect.getclosurevars(check).nonlocals for *has_permissions instead of monkey patching...
+        # print(check_vars, check_vars.globals.keys())
+        # I still don't know how to get the wrapper's name or how to unwrap the predicate reee
         extra_data = check.__dict__.get("slash_extras", None)
         if extra_data is None:
             continue
@@ -107,18 +111,16 @@ async def index_command(bot: commands.Bot, cmd: commands.Command) -> typing.Opti
             # todo: discord's slash commands don't support NSFW gating yet
             return None
         if "is_owner" in extra_data:
-            return None
-            # todo: not sure why this doesn't even work
-            # cmd_data["default_permission"] = False
-            # cmd_data["permissions"] = [
-            #     {
-            #         "id": str(owr_id),
-            #         "type": 2,  # USER Application Command Permission Type
-            #         "permission": True,
-            #     } for owr_id in await get_owner_ids(bot)
-            # ]
+            cmd_data["default_permission"] = False
+            cmd_data["permissions"] = [
+                {
+                    "id": str(owr_id),
+                    "type": ApplicationCommandPermissionType.USER,
+                    "permission": True,
+                } for owr_id in await get_owner_ids(bot)
+            ]
 
-    cmd_data["type"] = 1  # CHAT_INPUT
+    cmd_data["type"] = ApplicationCommandType.CHAT_INPUT
     if "default_permission" not in cmd_data:
         cmd_data["default_permission"] = True
     if "permissions" not in cmd_data:

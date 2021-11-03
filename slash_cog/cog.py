@@ -23,25 +23,23 @@ SOFTWARE.
 """
 
 import logging
-
-from . import InteractMessage, InteractContext, command_map
-
 import typing
 from datetime import datetime
 
 import discord
 from discord.ext import commands
 from discord.http import Route
-
 from discord.types.user import User as UserPayload
+
+from . import InteractMessage, InteractContext, command_map, ApplicationCommandType
 
 
 class SlashCommands(commands.Cog):
     # TODO: Map commands / subcommand parsing => callback with conversion support to prevent hackily faking a message
-    SLASH_INVOKE_PREFIX = "\N{ZERO WIDTH SPACE}"
+    SLASH_INVOKE_PREFIX = "/"
 
     def __init__(self, bot: commands.Bot):
-        self.registered = []
+        self.registered = set()
         self.bot = bot
         self.orig_prefix_callback = bot.get_prefix
         bot.get_prefix = self.get_prefix_wrapper
@@ -49,63 +47,64 @@ class SlashCommands(commands.Cog):
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.INFO)
 
-        bot.loop.create_task(self.wait_to_register())
+    def cog_unload(self):
+        self.bot.get_prefix = self.orig_prefix_callback
 
     async def get_prefix_wrapper(self, msg: discord.Message) -> typing.Union[list, str]:
         if not isinstance(msg, InteractMessage):
             return await self.orig_prefix_callback(msg)
-        return f"{self.SLASH_INVOKE_PREFIX}/"
+        return f"{self.SLASH_INVOKE_PREFIX}"
 
-    async def wait_to_register(self):
-        await self.bot.wait_until_ready()
+    async def generate_command_map(self, _commands: typing.Set[commands.Command] = None) -> typing.List[typing.Dict]:
+        if _commands is None:
+            _commands = self.bot.commands
 
-        if isinstance(self.bot, commands.AutoShardedBot):
-            if 0 not in self.bot.shard_ids:  # do not register commands as we are probably running on a separate instance
-                return
-        elif self.bot.shard_count > 1 and self.bot.shard_id != 0:
-            return
-
-        to_send = await self.generate_command_map()
-        self.logger.debug("Sending command list...")
-        # print(json.dumps(to_send, indent=4))
-        await self.register_commands("/", to_send)
-        self.logger.info(f"Registered {len(to_send)} top-level commands!")
-        # todo: guild-specific commands, refactor this registration code to allow flexible registration
-        # await self.register_commands("/guilds/123456789123456789", to_send)
-
-    async def generate_command_map(self) -> typing.List[typing.Dict]:
         cmd_map = []
-        for cmd in self.bot.commands:  # type: commands.Command
+        for cmd in _commands:
             cmd_data = await command_map.index_command(self.bot, cmd)
             if cmd_data is None:
                 continue
             cmd_map.append(cmd_data)
         return cmd_map
 
-    async def register_commands(self, endpoint: str, cmd_list: list):
-        await self.bot.http.request(Route(
-            method="PUT", path=f"/applications/{self.bot.application_id}{endpoint}/commands"
-        ), json=cmd_list)
-        self.registered.append(endpoint)
+    async def register_commands(self, endpoint: str = "/", cmd_list: list = None) -> None:
+        if cmd_list is None:
+            cmd_list = await self.generate_command_map()
 
-    def cog_unload(self):
-        async def clear_commands():
-            self.logger.info(f"Unregistering commands...")
-            for endpoint in self.registered:
-                await self.bot.http.request(Route(
-                    method="PUT", path=f"/applications/{self.bot.application_id}{endpoint}/commands"
-                ), json=[])
-            self.registered = []
+        self.logger.debug("Sending command list...")
+        await self.__internal_ep_req("PUT", endpoint, cmd_list)
+        self.registered.add(endpoint)
+        self.logger.info(f"Registered {len(cmd_list)} top-level commands to {endpoint} !")
 
-        self.bot.loop.create_task(clear_commands())
-        self.bot.get_prefix = self.orig_prefix_callback
+        # TODO: Check registered discord-side permissions, compare with permissions we've just registered,
+        #  update discord-side if outdated
+
+    async def unregister_commands(self, endpoint: str) -> None:
+        self.logger.info(f"Unregistering commands ({endpoint})...")
+        await self.__internal_ep_req("PUT", endpoint, [])
+
+        try:
+            self.registered.remove(endpoint)
+        except KeyError:
+            pass
+
+    async def clear_commands(self) -> None:
+        for endpoint in self.registered:
+            await self.unregister_commands(endpoint)
+
+    async def __internal_ep_req(self, method: str, endpoint: str, data: list = None, suffix: str = "") -> typing.Any:
+        route = Route(method=method, path=f"/applications/{self.bot.application_id}{endpoint}/commands{suffix}")
+        if data is not None:
+            return await self.bot.http.request(route, json=data)
+        else:
+            return await self.bot.http.request(route)
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction: discord.Interaction):
         data = interaction.data
         if "type" not in data:
             return
-        if data["type"] != 1:  # chat input cmd type
+        if data["type"] != ApplicationCommandType.CHAT_INPUT:
             return
         cmd = self.bot.get_command(data["name"])
         if cmd is None:
@@ -129,7 +128,7 @@ class SlashCommands(commands.Cog):
 
         args = []
         for opt in data.get("options", []):
-            if opt.get("type", None) == 1:  # chat input cmd type
+            if opt.get("type", None) == ApplicationCommandType.CHAT_INPUT:
                 args.append(opt["name"])
                 for sub_opt in opt.get("options", []):  # type: dict
                     args.append(sub_opt["value"])
@@ -142,7 +141,7 @@ class SlashCommands(commands.Cog):
 
         # fake message, invoke a command as the user
         ctx = await self.bot.get_context(cls=InteractContext, message=InteractMessage(channel=ch, data={
-            "content": f"{self.SLASH_INVOKE_PREFIX}/{data['name']} {' '.join(args)}".strip(),
+            "content": f"{self.SLASH_INVOKE_PREFIX}{data['name']} {' '.join(args)}".strip(),
             "author": UserPayload(id=user.id, username=user.name, discriminator=user.discriminator, avatar=None),
             "id": 0,
             "attachments": [],

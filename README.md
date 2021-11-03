@@ -12,14 +12,14 @@
 ### General TO-DOs & RFCs:
 
  - [ ] Make the cog more modular in order to support more customizations
- - [ ] Allow registering guild-specific commands
- - [ ] Allow preventing the cog from automatically registering global commands
+ - [ ] Avoid monkey-patching command checks
+ - [ ] Permissions syncing
+ - [ ] Translation for `has_role`
 
 ### Unsupported Features (Unsupported by Discord):
 
  - [ ] Translation for Custom checks
  - [ ] Translation for `@commands.check_any()`
- - [ ] `is_owner` (commands currently hidden)
  - [ ] `is_nsfw` (commands currently hidden)
  - [ ] `*has_permissions` (only roles and user IDs are accepted)
  - [ ] `bot_has_(any)?_role`
@@ -31,16 +31,21 @@ I personally won't provide support for forks as for simplicity's sake I will be 
 
 A word though, because everyone is making their own forks of discord.py, I would suggest changing up the readme to include what changes and features the fork has added apart from API parity and maintenance just to make everybody's lives easier.
 
-### Usage:
+### 3-step Usage:
 Simply install the pip package with:
 ```shell script
 pip install -U slash_cog
 ```
 
-Then in your bot's cog loader, load the cog (**CRITICAL:** Load it as the first extension as the cog needs to monkey patch command checks):
+Then in your bot's cog loader, load the command handler (**CRITICAL:** Load it as the first extension as the cog needs to monkey patch command checks):
 ```python
 bot.load_extension("slash_cog")
 ```
+
+Create a new cog to register the commands globally or per-guild, you may copy [the example](examples/register_slash_commands.py).
+
+Preferably, you should only register the commands once and keep them registered as Discord will retain the command data unless you replace them, but the code for this is for you to decide and/or modify the example to.
+
 
 ---
 #### P.S. If this project / POC has been useful [sponsor me](https://www.patreon.com/CortexPE) pls, iambroke

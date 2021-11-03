@@ -1,4 +1,4 @@
-from discord.ext import commands, tasks
+from discord.ext import commands
 
 from slash_cog import SlashCommands
 
@@ -6,13 +6,12 @@ from slash_cog import SlashCommands
 class RegisterSlashCommands(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.wait_to_register.start()
         cog = bot.get_cog("SlashCommands")
         if not isinstance(cog, SlashCommands):
             raise RuntimeError("Unable to find slash_cog extension")
         self.s_cog = cog  # type: SlashCommands
+        self.bot.loop.create_task(self.wait_to_register())
 
-    @tasks.loop(count=1)
     async def wait_to_register(self):
         await self.bot.wait_until_ready()
 

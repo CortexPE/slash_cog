@@ -111,6 +111,7 @@ async def index_command(bot: commands.Bot, cmd: commands.Command) -> typing.Opti
             # todo: discord's slash commands don't support NSFW gating yet
             return None
         if "is_owner" in extra_data:
+            # todo: add some way to configure this behavior, to hide or permission-gate owner-only commands
             cmd_data["default_permission"] = False
             cmd_data["permissions"] = [
                 {

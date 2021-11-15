@@ -21,9 +21,10 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
-
+import json
 import logging
 import typing
+from collections import OrderedDict
 from datetime import datetime
 
 import discord
@@ -31,7 +32,10 @@ from discord.ext import commands
 from discord.http import Route
 from discord.types.user import User as UserPayload
 
-from . import InteractMessage, InteractContext, command_map, ApplicationCommandType
+from . import command_map
+from .api_constants import ApplicationCommandType
+from .context import InteractContext
+from .message import InteractMessage
 
 
 class SlashCommands(commands.Cog):
@@ -76,8 +80,41 @@ class SlashCommands(commands.Cog):
         self.registered.add(endpoint)
         self.logger.info(f"Registered {len(cmd_list)} top-level commands to {endpoint} !")
 
-        # TODO: Check registered discord-side permissions, compare with permissions we've just registered,
-        #  update discord-side if outdated
+        # todo: perhaps refactor everything below this (permissions merging) into some way to merge it per-command, not globally
+
+        remote_cmd_list = await self.__internal_ep_req("GET", endpoint)
+        remote_perms = await self.__internal_ep_req("GET", endpoint, suffix="/permissions")
+
+        # map cmd-name -> cmd internal index
+        cmd_name_to_index = {}  # type: typing.Dict[str, int]
+        for cmd_index in range(len(cmd_list)):
+            cmd_data = cmd_list[cmd_index]
+
+            cmd_name_to_index[cmd_data["name"]] = cmd_index
+
+        # map remote cmd-name -> remote id
+        cmd_name_to_remote_id = {}  # type: typing.Dict[str, str]
+        for cmd_data in remote_cmd_list:
+            cmd_name_to_remote_id[cmd_data["name"]] = cmd_data["id"]  # this is str from discord
+
+        # strip useless items from remote perms
+        for cmd_index in range(len(remote_perms)):
+            del remote_perms[cmd_index]["application_id"]
+            del remote_perms[cmd_index]["guild_id"]
+
+        # rebuild perms
+        new_perms = set()
+        for cmd_name, cmd_id in cmd_name_to_remote_id.items():
+            new_perms.add(json.dumps(OrderedDict({  # dict is not hashable
+                "id": cmd_id,
+                "permissions": cmd_list[cmd_name_to_index[cmd_name]].get("permissions", [])
+            })))
+
+        # considers dict-item-ordering, since we're comparing str here in the sets not the dict items
+        old_perms = set([json.dumps(OrderedDict(sorted(d.items(), key=lambda kv: kv[0]))) for d in remote_perms])  # serialize old perms
+        new_perms = [json.loads(d) for d in new_perms.union(old_perms)]
+
+        await self.__internal_ep_req("PUT", endpoint, new_perms, "/permissions")
 
     async def unregister_commands(self, endpoint: str) -> None:
         self.logger.info(f"Unregistering commands ({endpoint})...")

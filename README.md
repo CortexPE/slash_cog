@@ -8,12 +8,12 @@
  - Automatically generates a command map with argument listing for the entire bot
  - Wraps around existing discord.py `Context`, almost no code modifications needed
  - Automatic Multi-Instance bot detection (currently, it will only register if there is no shards or the bot runs *shard `0`*)
+ - Storage-less automatic permissions syncing
 
 ### General TO-DOs & RFCs:
 
  - [ ] Make the cog more modular in order to support more customizations
  - [ ] Avoid monkey-patching command checks
- - [ ] Permissions syncing
  - [ ] Translation for `has_role`
 
 ### Unsupported Features (Unsupported by Discord):

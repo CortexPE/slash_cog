@@ -22,10 +22,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
+from discord.ext import commands
 from discord.ext.commands import Bot
 
 from slash_cog.api_constants import *
-from slash_cog.cog import *
+from slash_cog.cog import SlashCommands
 from slash_cog.command_map import index_command
 from slash_cog.context import InteractContext
 from slash_cog.decorator import inject_extracted

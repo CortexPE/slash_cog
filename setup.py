@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name="slash_cog",
-    version="0.0.2",
+    version="0.0.3",
     description="A drop-in vanilla discord.py cog to add slash command support with little to no code modifications",
     url="https://github.com/CortexPE/slash_cog",
     author="CortexPE",

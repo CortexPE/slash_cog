@@ -59,7 +59,7 @@ def index_callback_parameters(log: Logger, callback: callable) -> typing.List[di
     params = inspect.signature(callback).parameters  # type: typing.Mapping[str, inspect.Parameter]
     doc = parse_doc(callback.__doc__)
     i = 0
-    for param_name, param in params.items():
+    for param_name, param in params.items():  # type: str, inspect.Parameter
         if param_name in ["self"]:
             continue
         i += 1
@@ -72,7 +72,7 @@ def index_callback_parameters(log: Logger, callback: callable) -> typing.List[di
             "name": param.name,
             "description": desc or f"{param.name} argument",
             "type": param_annotation_to_discord_int(param.annotation),
-            "required": param.default == param.empty
+            "required": param.default == param.empty and param.kind != inspect.Parameter.VAR_POSITIONAL
         })
     return options
 

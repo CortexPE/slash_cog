@@ -40,7 +40,7 @@ class InteractContext(commands.Context):
         #     await self.response.send_message(ephemeral=False, *args, **kwargs)
         # else:
         await self.parent_interaction.followup.send(*args, **kwargs)
-        msg = await self.parent_interaction.original_message()
+        msg = await self.parent_interaction.original_response()
 
         if delete_after is not None:
             await msg.delete(delay=delete_after)

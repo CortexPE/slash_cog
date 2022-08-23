@@ -30,10 +30,9 @@ from slash_cog.cog import SlashCommands
 from slash_cog.command_map import index_command
 from slash_cog.context import InteractContext
 from slash_cog.decorator import inject_extracted
-from slash_cog.message import InteractMessage
 
 
-def setup(bot: Bot):
+async def setup(bot: Bot):
     checks = [
         "bot_has_guild_permissions", "has_guild_permissions",
         "bot_has_permissions", "has_permissions",
@@ -45,4 +44,4 @@ def setup(bot: Bot):
     ]
     for check_name in checks:
         setattr(commands, check_name, inject_extracted(getattr(commands, check_name)))
-    bot.add_cog(SlashCommands(bot))
+    await bot.add_cog(SlashCommands(bot))

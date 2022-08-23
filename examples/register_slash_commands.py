@@ -33,7 +33,7 @@ class RegisterSlashCommands(commands.Cog):
     # def cog_unload(self):
     #     self.bot.loop.create_task(self.s_cog.unregister_commands("/guilds/123456789123456789"))
     #     OR:
-    #     self.bot.loop.create_task(self.clear_commands())
+    #     self.bot.loop.create_task(self.s_cog.clear_commands())
 
 
 def setup(bot: commands.Bot):

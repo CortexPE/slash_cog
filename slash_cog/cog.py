@@ -21,13 +21,12 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
-import json
 import logging
 import typing
-from collections import OrderedDict
 from datetime import datetime
 
 import discord
+from discord.app_commands import AppCommandError, CommandNotFound
 from discord.ext import commands
 from discord.http import Route
 from discord.types.user import User as UserPayload
@@ -51,10 +50,21 @@ class SlashCommands(commands.Cog):
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.INFO)
 
+        self.orig_err_handler = self.bot.tree.on_error
+        self.bot.tree.on_error = self.attempt_handle_tree_error
+
     def cog_unload(self):
         self.bot.get_prefix = self.orig_prefix_callback
+        self.bot.tree.on_error = self.orig_err_handler
+
+    async def attempt_handle_tree_error(self, interaction: discord.Interaction, error: AppCommandError) -> None:
+        if isinstance(error, CommandNotFound) and self.bot.get_command(error.name) is not None:
+            return
+        await self.orig_err_handler(interaction, error)
 
     async def get_prefix_wrapper(self, msg: discord.Message) -> typing.Union[list, str]:
+        from .message import InteractMessage
+
         if not isinstance(msg, InteractMessage):
             return await self.orig_prefix_callback(msg)
         return f"{self.SLASH_INVOKE_PREFIX}"
@@ -65,7 +75,7 @@ class SlashCommands(commands.Cog):
 
         cmd_map = []
         for cmd in _commands:
-            cmd_data = await command_map.index_command(self.bot, cmd)
+            cmd_data = await command_map.index_command(self.logger, self.bot, cmd)
             if cmd_data is None:
                 continue
             cmd_map.append(cmd_data)
@@ -80,41 +90,21 @@ class SlashCommands(commands.Cog):
         self.registered.add(endpoint)
         self.logger.info(f"Registered {len(cmd_list)} top-level commands to {endpoint} !")
 
-        # todo: perhaps refactor everything below this (permissions merging) into some way to merge it per-command, not globally
+        # todo: permissions v2, https://discord.com/developers/docs/interactions/application-commands#application-command-permissions-object-example-of-editing-permissions
 
-        remote_cmd_list = await self.__internal_ep_req("GET", endpoint)
-        remote_perms = await self.__internal_ep_req("GET", endpoint, suffix="/permissions")
+        # types:
+        #   ROLE: 1
+        #   USER: 1
+        #   CHANNEL: 1
 
-        # map cmd-name -> cmd internal index
-        cmd_name_to_index = {}  # type: typing.Dict[str, int]
-        for cmd_index in range(len(cmd_list)):
-            cmd_data = cmd_list[cmd_index]
-
-            cmd_name_to_index[cmd_data["name"]] = cmd_index
-
-        # map remote cmd-name -> remote id
-        cmd_name_to_remote_id = {}  # type: typing.Dict[str, str]
-        for cmd_data in remote_cmd_list:
-            cmd_name_to_remote_id[cmd_data["name"]] = cmd_data["id"]  # this is str from discord
-
-        # strip useless items from remote perms
-        for cmd_index in range(len(remote_perms)):
-            del remote_perms[cmd_index]["application_id"]
-            del remote_perms[cmd_index]["guild_id"]
-
-        # rebuild perms
-        new_perms = set()
-        for cmd_name, cmd_id in cmd_name_to_remote_id.items():
-            new_perms.add(json.dumps(OrderedDict({  # dict is not hashable
-                "id": cmd_id,
-                "permissions": cmd_list[cmd_name_to_index[cmd_name]].get("permissions", [])
-            })))
-
-        # considers dict-item-ordering, since we're comparing str here in the sets not the dict items
-        old_perms = set([json.dumps(OrderedDict(sorted(d.items(), key=lambda kv: kv[0]))) for d in remote_perms])  # serialize old perms
-        new_perms = [json.loads(d) for d in new_perms.union(old_perms)]
-
-        await self.__internal_ep_req("PUT", endpoint, new_perms, "/permissions")
+        # sample code:
+        # await self.__internal_ep_req("PUT", "/guilds/<my_guild_id>", suffix="/<my_command_id>/permissions", data={
+        #     "permissions": [{
+        #         "id": channel_id,
+        #         "type": 3,
+        #         "permission": False
+        #     }]
+        # })
 
     async def unregister_commands(self, endpoint: str) -> None:
         self.logger.info(f"Unregistering commands ({endpoint})...")
@@ -129,7 +119,7 @@ class SlashCommands(commands.Cog):
         for endpoint in self.registered:
             await self.unregister_commands(endpoint)
 
-    async def __internal_ep_req(self, method: str, endpoint: str, data: list = None, suffix: str = "") -> typing.Any:
+    async def __internal_ep_req(self, method: str, endpoint: str, data: typing.Any = None, suffix: str = "") -> typing.Any:
         route = Route(method=method, path=f"/applications/{self.bot.application_id}{endpoint}/commands{suffix}")
         if data is not None:
             return await self.bot.http.request(route, json=data)
@@ -177,7 +167,7 @@ class SlashCommands(commands.Cog):
         await interaction.response.defer()
 
         # fake message, invoke a command as the user
-        ctx = await self.bot.get_context(cls=InteractContext, message=InteractMessage(channel=ch, data={
+        ctx = await self.bot.get_context(InteractMessage(channel=ch, data={
             "content": f"{self.SLASH_INVOKE_PREFIX}{data['name']} {' '.join(args)}".strip(),
             "author": UserPayload(id=user.id, username=user.name, discriminator=user.discriminator, avatar=None),
             "id": 0,
@@ -188,5 +178,5 @@ class SlashCommands(commands.Cog):
             "pinned": False,
             "mention_everyone": False,
             "tts": False,
-        }, state=self.bot._connection, parent_interaction=interaction))
+        }, state=self.bot._connection, parent_interaction=interaction), cls=InteractContext)
         await self.bot.invoke(ctx)

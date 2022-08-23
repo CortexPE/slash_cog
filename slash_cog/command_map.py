@@ -24,9 +24,11 @@ SOFTWARE.
 
 import inspect
 import typing
+from logging import Logger
 
 import discord
 from discord.ext import commands
+from docstring_parser import parse as parse_doc
 
 from .api_constants import *
 
@@ -52,15 +54,23 @@ def param_annotation_to_discord_int(annotation: type) -> ApplicationCommandOptio
     return ApplicationCommandOptionType.STRING  # fallback to string, discord.py will convert it
 
 
-def index_callback_parameters(callback: callable) -> typing.List[dict]:
+def index_callback_parameters(log: Logger, callback: callable) -> typing.List[dict]:
     options = []
     params = inspect.signature(callback).parameters  # type: typing.Mapping[str, inspect.Parameter]
+    doc = parse_doc(callback.__doc__)
+    i = 0
     for param_name, param in params.items():
-        if param_name in ["self", "ctx", "cog"]:
+        if param_name in ["self"]:
             continue
+        i += 1
+        if param_name in ["ctx", "cog"]:
+            continue
+        desc = doc.params[i - 1].description if len(doc.params) >= i else None
+        if desc is None:
+            log.warning(f"Undocumented argument {param.name} with type {param.annotation} on {callback.__name__}@{inspect.getabsfile(callback)}")
         options.append({
             "name": param.name,
-            "description": f"{param.name} argument",  # todo: detect parameter descriptions from pydoc
+            "description": desc or f"{param.name} argument",
             "type": param_annotation_to_discord_int(param.annotation),
             "required": param.default == param.empty
         })
@@ -82,15 +92,26 @@ async def get_owner_ids(bot: commands.Bot) -> typing.Set[int]:
     return ids
 
 
-async def index_command(bot: commands.Bot, cmd: commands.Command) -> typing.Optional[dict]:
+async def index_command(log: Logger, bot: commands.Bot, cmd: commands.Command) -> typing.Optional[dict]:
+    if cmd.hidden:
+        return None
+
+    def trunc(s: str, _l: int):
+        if len(s) > _l:
+            return s[:_l - 1] + "\N{HORIZONTAL ELLIPSIS}"
+        return s
+
     cmd_data = {
         "name": cmd.name,
-        "description": cmd.description or "Un-described command",  # perhaps this needs to be truncated to < 100 chars
+        "description": trunc(cmd.description or "Un-described command", 100),  # perhaps this needs to be truncated to < 100 chars
         "options": []
     }
     if isinstance(cmd, commands.Group):
+        if len(cmd.commands) >= 25:
+            log.error(f"Amount of subcommands for the group {cmd.name} exceeds 25 (discord limit)")
+            return None
         for sub_cmd in cmd.commands:  # type: commands.Command
-            sub_cmd_data = await index_command(bot, sub_cmd)
+            sub_cmd_data = await index_command(log, bot, sub_cmd)
             if sub_cmd_data is None:
                 continue
             cmd_data["options"].append(sub_cmd_data)
@@ -108,8 +129,7 @@ async def index_command(bot: commands.Bot, cmd: commands.Command) -> typing.Opti
         if extra_data is None:
             continue
         if "is_nsfw" in extra_data:
-            # todo: discord's slash commands don't support NSFW gating yet
-            return None
+            cmd_data["nsfw"] = True
         if "is_owner" in extra_data:
             # todo: add some way to configure this behavior, to hide or permission-gate owner-only commands
             cmd_data["default_permission"] = False
@@ -126,6 +146,6 @@ async def index_command(bot: commands.Bot, cmd: commands.Command) -> typing.Opti
         cmd_data["default_permission"] = True
     if "permissions" not in cmd_data:
         cmd_data["permissions"] = []
-    cmd_data["options"] = index_callback_parameters(cmd.callback)
+    cmd_data["options"] = index_callback_parameters(log, cmd.callback)
 
     return cmd_data

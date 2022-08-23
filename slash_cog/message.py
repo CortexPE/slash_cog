@@ -22,21 +22,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-import typing
-
 import discord
-from discord.state import ConnectionState
-from discord.types.message import Message as MessagePayload
 
 
 class InteractMessage(discord.Message):
-    def __init__(
-            self,
-            *,
-            state: ConnectionState,
-            channel: typing.Union[discord.TextChannel, discord.Thread, discord.DMChannel, discord.GroupChannel, discord.PartialMessageable],
-            data: MessagePayload,
-            parent_interaction: discord.Interaction
-    ):
+    def __init__(self, *, state, channel, data, parent_interaction: discord.Interaction):
         super().__init__(state=state, channel=channel, data=data)
         self.parent_interaction = parent_interaction

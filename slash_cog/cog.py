@@ -168,7 +168,7 @@ class SlashCommands(commands.Cog):
 
         # fake message, invoke a command as the user
         ctx = await self.bot.get_context(InteractMessage(channel=ch, data={
-            "content": f"{self.SLASH_INVOKE_PREFIX}{data['name']} {' '.join(args)}".strip(),
+            "content": f"{self.SLASH_INVOKE_PREFIX}{data['name']} {' '.join(map(str, args))}".strip(),
             "author": UserPayload(id=user.id, username=user.name, discriminator=user.discriminator, avatar=None),
             "id": 0,
             "attachments": [],

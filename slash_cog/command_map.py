@@ -103,7 +103,7 @@ async def index_command(log: Logger, bot: commands.Bot, cmd: commands.Command) -
 
     cmd_data = {
         "name": cmd.name,
-        "description": trunc(cmd.description or "Un-described command", 100),  # perhaps this needs to be truncated to < 100 chars
+        "description": trunc(cmd.description or cmd.help or "Un-described command", 100).split("\n")[0],  # perhaps this needs to be truncated to < 100 chars
         "options": []
     }
     if isinstance(cmd, commands.Group):

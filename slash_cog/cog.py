@@ -29,6 +29,7 @@ import discord
 from discord.app_commands import AppCommandError, CommandNotFound
 from discord.ext import commands
 from discord.http import Route
+from discord.types.member import Member as MemberPayload
 from discord.types.user import User as UserPayload
 
 from . import command_map
@@ -166,17 +167,26 @@ class SlashCommands(commands.Cog):
 
         await interaction.response.defer()
 
+        now_datestr = datetime.isoformat(datetime.utcnow())
         # fake message, invoke a command as the user
-        ctx = await self.bot.get_context(InteractMessage(channel=ch, data={
+        _data = {
             "content": f"{self.SLASH_INVOKE_PREFIX}{data['name']} {' '.join(map(str, args))}".strip(),
             "author": UserPayload(id=user.id, username=user.name, discriminator=user.discriminator, avatar=None),
             "id": 0,
             "attachments": [],
             "embeds": [],
-            "edited_timestamp": datetime.isoformat(datetime.utcnow()),
+            "edited_timestamp": now_datestr,
             "type": discord.MessageType.default,
             "pinned": False,
             "mention_everyone": False,
             "tts": False,
-        }, state=self.bot._connection, parent_interaction=interaction), cls=InteractContext)
+        }
+        if interaction.guild is not None:
+            _data["member"] = MemberPayload(
+                roles=[role.id for role in (interaction.guild.get_member(user.id) or await interaction.guild.fetch_member(user.id)).roles],
+                premium_since=None, pending=False, mute=False, joined_at=now_datestr, deaf=False,
+                nick=None, communication_disabled_until=None, avatar=None
+            )
+
+        ctx = await self.bot.get_context(InteractMessage(channel=ch, data=_data, state=self.bot._connection, parent_interaction=interaction), cls=InteractContext)
         await self.bot.invoke(ctx)

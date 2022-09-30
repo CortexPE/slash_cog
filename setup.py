@@ -9,7 +9,7 @@ setup(
     license="MIT",
     packages=["slash_cog"],
     zip_safe=False,
-    install_requires=["discord.py @ git+ssh://git@github.com/Rapptz/discord.py@master", "docstring-parser==0.14.1"],
+    install_requires=["discord.py @ git+https://github.com/Rapptz/discord.py@master", "docstring-parser==0.14.1"],
     python_requires=">=3.6",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",

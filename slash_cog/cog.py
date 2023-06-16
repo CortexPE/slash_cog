@@ -28,6 +28,7 @@ from datetime import datetime
 import discord
 from discord.app_commands import AppCommandError, CommandNotFound
 from discord.ext import commands
+from discord.ext.commands.hybrid import HybridCommand, HybridGroup
 from discord.http import Route
 from discord.types.member import Member as MemberPayload
 from discord.types.user import User as UserPayload
@@ -135,7 +136,7 @@ class SlashCommands(commands.Cog):
         if data["type"] != ApplicationCommandType.CHAT_INPUT:
             return
         cmd = self.bot.get_command(data["name"])
-        if cmd is None:
+        if cmd is None or isinstance(cmd, (HybridCommand, HybridGroup)):
             return
 
         try:

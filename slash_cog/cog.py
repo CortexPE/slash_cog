@@ -135,6 +135,8 @@ class SlashCommands(commands.Cog):
             return
         if data["type"] != ApplicationCommandType.CHAT_INPUT:
             return
+        if any(_.get("focused", False) for _ in data.get("options", [])):
+            return  # ignore autocomplete
         cmd = self.bot.get_command(data["name"])
         if cmd is None or isinstance(cmd, (HybridCommand, HybridGroup)):
             return
